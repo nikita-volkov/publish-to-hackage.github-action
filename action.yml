@@ -20,6 +20,16 @@ inputs:
     required: false
     default: 'false'
 
+  packagesPath:
+    description: 'Path to the directory containing the package tarballs (e.g., produced by "cabal sdist")'
+    required: false
+    default: 'dist-newstyle/sdist/'
+
+  docsPath:
+    description: 'Path to the directory containing the package documentation tarballs (e.g., produced by "cabal haddock --haddock-for-hackage"). Leave empty to skip documentation upload'
+    required: false
+    default: ''
+
 runs:
   using: composite
   steps:
@@ -33,29 +43,57 @@ runs:
               exit 1
             fi
 
-          PACKAGE_TARBALL=$(cabal sdist | tail -1)
-
           HACKAGE_AUTH_HEADER="Authorization: X-ApiKey ${{ inputs.token }}"
 
-          PACKAGE_NAME=$(basename ${PACKAGE_TARBALL%.*.*})
-          
-          if [ "${{ inputs.publish }}" == "true" ]
-            then
-              TARGET_URL="${{ inputs.server }}/packages/upload";
-              PACKAGE_URL="${{ inputs.server }}/package/$PACKAGE_NAME"
-              HACKAGE_STATUS=$(curl --header "${HACKAGE_AUTH_HEADER}" --silent --head -w %{http_code} -XGET --anyauth $PACKAGE_URL -o /dev/null)
-            else
-              TARGET_URL="${{ inputs.server }}/packages/candidates";
-              PACKAGE_URL="${{ inputs.server }}/package/$PACKAGE_NAME/candidate"
-              HACKAGE_STATUS=404
-            fi
+          for PACKAGE_TARBALL in $(find "${{ inputs.packagesPath }}" -maxdepth 1 -name "*.tar.gz"); do
+              PACKAGE_NAME=$(basename ${PACKAGE_TARBALL%.*.*})
 
-          if [ "$HACKAGE_STATUS" != "404" ]
-            then
-              echo "Package ${PACKAGE_NAME}" already exists on Hackage.
-              exit 1
-            fi
+              if [ "${{ inputs.publish }}" == "true" ]
+                then
+                  TARGET_URL="${{ inputs.server }}/packages/upload";
+                  PACKAGE_URL="${{ inputs.server }}/package/$PACKAGE_NAME"
+                  HACKAGE_STATUS=$(curl --header "${HACKAGE_AUTH_HEADER}" --silent --head -w %{http_code} -XGET --anyauth $PACKAGE_URL -o /dev/null)
+                else
+                  TARGET_URL="${{ inputs.server }}/packages/candidates";
+                  PACKAGE_URL="${{ inputs.server }}/package/$PACKAGE_NAME/candidate"
+                  HACKAGE_STATUS=404
+                fi
 
-          echo "Uploading ${PACKAGE_NAME} to ${TARGET_URL}"
-          curl -X POST -f --header "${HACKAGE_AUTH_HEADER}" ${TARGET_URL} -F "package=@$PACKAGE_TARBALL"
-          echo "Uploaded ${PACKAGE_URL}"
+              DOCS_URL="$PACKAGE_URL/docs"
+
+              if [ "$HACKAGE_STATUS" != "404" ]
+                then
+                  echo "Package ${PACKAGE_NAME} already exists on Hackage."
+                  exit 1
+                fi
+
+              echo "Uploading ${PACKAGE_NAME} to ${TARGET_URL}"
+              curl -X POST -f --header "${HACKAGE_AUTH_HEADER}" ${TARGET_URL} -F "package=@$PACKAGE_TARBALL"
+              echo "Uploaded ${PACKAGE_URL}"
+
+              DOC_FILE_NAME="${{ inputs.docsPath }}/${PACKAGE_NAME}-docs.tar.gz"
+              if [ -n "${{ inputs.docsPath }}" ] && [ -f "$DOC_FILE_NAME" ]; then
+                echo "Uploading documentation for ${PACKAGE_NAME} to ${DOCS_URL}"
+
+                set +e
+                DOC_RESPONSE=$(curl -sS -X PUT \
+                  -H 'Content-Type: application/x-tar' \
+                  -H 'Content-Encoding: gzip' \
+                  -H "${HACKAGE_AUTH_HEADER}" \
+                  --data-binary "@$DOC_FILE_NAME" \
+                  "$DOCS_URL")
+                DOC_CURL_EXIT=$?
+                set -e
+
+                if [ "$DOC_CURL_EXIT" -eq 56 ] && echo "$DOC_RESPONSE" | grep -q "Successfully uploaded documentation"
+                  then
+                    echo "Note: curl exited with 56 (chunked-encoding parse error) after Hackage confirmed the upload. This is a known Hackage response-truncation quirk, not an actual failure - treating as success."
+                  elif [ "$DOC_CURL_EXIT" -ne 0 ]
+                    then
+                      echo "$DOC_RESPONSE"
+                      exit "$DOC_CURL_EXIT"
+                  fi
+
+                echo "Uploaded documentation to ${DOCS_URL}"
+              fi
+          done
