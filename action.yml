@@ -37,6 +37,8 @@ runs:
     - name: Publish packages
       shell: bash
       run: |
+          set -euo pipefail
+
           if [ -z "${{ inputs.token }}" ]
             then
               echo "Token is empty"
@@ -45,7 +47,13 @@ runs:
 
           HACKAGE_AUTH_HEADER="Authorization: X-ApiKey ${{ inputs.token }}"
 
-          for PACKAGE_TARBALL in $(find "${{ inputs.packagesPath }}" -maxdepth 1 -name "*.tar.gz"); do
+          mapfile -d '' -t PACKAGE_TARBALLS < <(find "${{ inputs.packagesPath }}" -maxdepth 1 -name "*.tar.gz" -print0)
+          if [ "${#PACKAGE_TARBALLS[@]}" -eq 0 ]; then
+            echo "::error::No package tarballs found in ${{ inputs.packagesPath }}"
+            exit 1
+          fi
+
+          for PACKAGE_TARBALL in "${PACKAGE_TARBALLS[@]}"; do
               PACKAGE_NAME=$(basename ${PACKAGE_TARBALL%.*.*})
 
               if [ "${{ inputs.publish }}" == "true" ]
@@ -76,7 +84,7 @@ runs:
                 echo "Uploading documentation for ${PACKAGE_NAME} to ${DOCS_URL}"
 
                 set +e
-                DOC_RESPONSE=$(curl -sS -X PUT \
+                DOC_RESPONSE=$(curl -sS -X PUT -f \
                   -H 'Content-Type: application/x-tar' \
                   -H 'Content-Encoding: gzip' \
                   -H "${HACKAGE_AUTH_HEADER}" \
