@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+URL=""
+for arg in "$@"; do
+  case "${arg}" in
+    *://*) URL="${arg}"; break ;;
+  esac
+done
+
+case "${URL}" in
+  */packages/upload)
+    echo "publish" >> "${CALLS_LOG}"
+    printf '%s\n%s' "${MOCK_PUBLISH_BODY:-}" "${MOCK_PUBLISH_CODE:-200}"
+    ;;
+  */packages/candidates)
+    echo "candidate" >> "${CALLS_LOG}"
+    printf '%s' "${MOCK_CANDIDATE_BODY:-ok}"
+    ;;
+  */docs)
+    echo "docs" >> "${CALLS_LOG}"
+    printf '%s' "${MOCK_DOCS_BODY:-Uploaded successfully}"
+    exit "${MOCK_DOCS_EXIT_CODE:-0}"
+    ;;
+  */package/*)
+    echo "existence" >> "${CALLS_LOG}"
+    printf '%s' "${MOCK_EXISTENCE_CODE:-404}"
+    ;;
+  *)
+    echo "unexpected curl invocation: $*" >&2
+    exit 99
+    ;;
+esac
