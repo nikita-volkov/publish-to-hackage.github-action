@@ -26,8 +26,8 @@ This action does not build the tarball itself — build it in a prior step, then
   with:
     token: ${{ secrets.HACKAGE_TOKEN }}
     publish: true
-    packagePath: dist-newstyle/sdist/my-package-1.0.0.tar.gz
-    docPath: dist-newstyle/sdist/my-package-1.0.0-docs.tar.gz
+    package-path: dist-newstyle/sdist/my-package-1.0.0.tar.gz
+    doc-path: dist-newstyle/sdist/my-package-1.0.0-docs.tar.gz
 
 - name: Report outcome
   run: echo "Already published: ${{ steps.publish.outputs.already-published }}"
@@ -40,8 +40,8 @@ This action does not build the tarball itself — build it in a prior step, then
 | `token` | yes | | Authentication token for Hackage |
 | `server` | no | `https://hackage.haskell.org` | URL to the Hackage server |
 | `publish` | no | `false` | Whether to publish the release on Hackage. Uploads a release candidate if `false` |
-| `packagePath` | yes | | Path to the package tarball produced by `cabal sdist` |
-| `docPath` | no | (empty, disabled) | Path to the documentation tarball produced by `cabal haddock --haddock-for-hackage`. Leave empty to skip documentation upload |
+| `package-path` | yes | | Path to the package tarball produced by `cabal sdist` |
+| `doc-path` | no | (empty, disabled) | Path to the documentation tarball produced by `cabal haddock --haddock-for-hackage`. Leave empty to skip documentation upload |
 
 ## Outputs
 
@@ -57,7 +57,7 @@ When `publish: true`, if the package version was already published on Hackage, t
 
 `v2` is a breaking change:
 
-- `packagesPath` (a directory, globbed for all `*.tar.gz` files) is replaced by `packagePath` (the path to a single tarball file).
-- `docsPath` (a directory) is replaced by `docPath` (the path to a single doc tarball file).
-- Multi-package projects that relied on `packagesPath` uploading every tarball in a directory must now call this action once per package (e.g. in a build matrix), passing the specific `packagePath`/`docPath` for each.
+- `packagesPath` (a directory, globbed for all `*.tar.gz` files) is replaced by `package-path` (the path to a single tarball file).
+- `docsPath` (a directory) is replaced by `doc-path` (the path to a single doc tarball file).
+- Multi-package projects that relied on `packagesPath` uploading every tarball in a directory must now call this action once per package (e.g. in a build matrix), passing the specific `package-path`/`doc-path` for each.
 - A package that's already published on Hackage no longer fails the job — check the new `already-published` output if your workflow needs to branch on that.

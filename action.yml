@@ -20,11 +20,11 @@ inputs:
     required: false
     default: 'false'
 
-  packagePath:
+  package-path:
     description: 'Path to the package tarball (e.g., produced by "cabal sdist")'
     required: true
 
-  docPath:
+  doc-path:
     description: 'Path to the package documentation tarball (e.g., produced by "cabal haddock --haddock-for-hackage"). Leave empty to skip documentation upload'
     required: false
     default: ''
@@ -45,6 +45,6 @@ runs:
         HACKAGE_TOKEN: ${{ inputs.token }}
         HACKAGE_SERVER: ${{ inputs.server }}
         PUBLISH: ${{ inputs.publish }}
-        PACKAGE_PATH: ${{ inputs.packagePath }}
-        DOC_PATH: ${{ inputs.docPath }}
+        PACKAGE_PATH: ${{ inputs.package-path }}
+        DOC_PATH: ${{ inputs.doc-path }}
       run: ${{ github.action_path }}/scripts/publish.sh
