@@ -11,21 +11,26 @@ It is a fork of [haskell-actions/hackage-publish](https://github.com/haskell-act
 
 ## Usage
 
-This action does not build the tarballs itself — build them in a prior step, then point this action at the directory containing them:
+This action does not build the tarball itself — build it in a prior step, then point this action at the tarball file. It publishes exactly **one** package per invocation; for multi-package Cabal projects, invoke it once per package (e.g. via a build matrix).
 
 ```yaml
 - name: Build package tarball
-  run: cabal sdist all
+  run: cabal sdist
 
 - name: Build documentation tarball
-  run: cabal haddock --haddock-for-hackage all
+  run: cabal haddock --haddock-for-hackage
 
 - name: Publish to Hackage
-  uses: nikita-volkov/publish-to-hackage@v1
+  id: publish
+  uses: nikita-volkov/publish-to-hackage@v2
   with:
     token: ${{ secrets.HACKAGE_TOKEN }}
     publish: true
-    docsPath: dist-newstyle/sdist
+    packagePath: dist-newstyle/sdist/my-package-1.0.0.tar.gz
+    docPath: dist-newstyle/sdist/my-package-1.0.0-docs.tar.gz
+
+- name: Report outcome
+  run: echo "Already published: ${{ steps.publish.outputs.already-published }}"
 ```
 
 ## Inputs
@@ -35,9 +40,24 @@ This action does not build the tarballs itself — build them in a prior step, t
 | `token` | yes | | Authentication token for Hackage |
 | `server` | no | `https://hackage.haskell.org` | URL to the Hackage server |
 | `publish` | no | `false` | Whether to publish the release on Hackage. Uploads a release candidate if `false` |
-| `packagesPath` | no | `dist-newstyle/sdist/` | Directory containing the package tarballs produced by `cabal sdist` |
-| `docsPath` | no | (empty, disabled) | Directory containing the documentation tarballs produced by `cabal haddock --haddock-for-hackage`. Leave empty to skip documentation upload |
+| `packagePath` | yes | | Path to the package tarball produced by `cabal sdist` |
+| `docPath` | no | (empty, disabled) | Path to the documentation tarball produced by `cabal haddock --haddock-for-hackage`. Leave empty to skip documentation upload |
 
-## Multiple packages
+## Outputs
 
-Every `*.tar.gz` found directly under `packagesPath` is uploaded, so multi-package Cabal projects are supported without any extra configuration — just make sure `cabal sdist all` (and, if using `docsPath`, `cabal haddock --haddock-for-hackage all`) is run beforehand.
+| Name | Description |
+|---|---|
+| `already-published` | `"true"` if the package was already published on Hackage prior to this run (an idempotent no-op — the run still succeeds); `"false"` if this run performed the publish. Only meaningful when `publish` is `true`; candidate uploads always report `"false"` |
+
+## Idempotency
+
+When `publish: true`, if the package version was already published on Hackage, the action does **not** fail. It reports this via the `already-published` output instead, so retried or re-run workflows stay idempotent. Any other upload failure (bad token, permission error, server error) still fails the action normally.
+
+## Migrating from v1
+
+`v2` is a breaking change:
+
+- `packagesPath` (a directory, globbed for all `*.tar.gz` files) is replaced by `packagePath` (the path to a single tarball file).
+- `docsPath` (a directory) is replaced by `docPath` (the path to a single doc tarball file).
+- Multi-package projects that relied on `packagesPath` uploading every tarball in a directory must now call this action once per package (e.g. in a build matrix), passing the specific `packagePath`/`docPath` for each.
+- A package that's already published on Hackage no longer fails the job — check the new `already-published` output if your workflow needs to branch on that.
