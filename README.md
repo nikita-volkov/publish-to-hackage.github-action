@@ -2,12 +2,14 @@
 
 GitHub action for publishing packages and documentation to Hackage.
 
-It is a fork of [haskell-actions/hackage-publish](https://github.com/haskell-actions/hackage-publish). In difference to the original it:
+It is a fork of [haskell-actions/hackage-publish](https://github.com/haskell-actions/hackage-publish).
 
-- Fixes the issue of the original action not failing on errors such as unsuccessful publishing.
-- Fails fast with a clear message when the `token` input is empty.
-- Uses `https` as the default `server`, rather than plain `http`.
-- Works around a known Hackage bug where the documentation-upload response gets truncated: curl reports exit code 56 (`Illegal or missing hexadecimal sequence in chunked-encoding`) even though the documentation was uploaded successfully. This action detects that specific case from the response body and treats it as success instead of failing the job.
+## Features
+
+- **Idempotent publishing.** When `publish: true` and the package version is already published on Hackage, the action does **not** fail — it reports that state via the `already-published` output instead. Retried or re-run workflows stay safe; only genuine failures (bad token, permission error, server error) fail the job.
+- **Fails fast and loud on real errors.** Unlike the original action, this fork fails the job on errors such as unsuccessful publishing, and fails immediately with a clear message when the `token` input is empty.
+- **Secure by default.** Uses `https` as the default `server`, rather than plain `http`.
+- **Robust doc uploads.** Works around a known Hackage bug where the documentation-upload response gets truncated: curl reports exit code 56 (`Illegal or missing hexadecimal sequence in chunked-encoding`) even though the docs uploaded successfully. The action detects that specific case from the response body and treats it as success instead of failing the job.
 
 ## Usage
 
